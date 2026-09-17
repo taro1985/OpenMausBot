@@ -176,14 +176,14 @@ export function PluginsPanel() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search apps"
+          placeholder="アプリを検索"
           className="mt-3 w-full rounded-lg border border-hairline/40 bg-inset px-3 py-2 text-[13px] text-ink placeholder:text-ink-secondary focus:border-hairline focus:outline-none"
         />
 
         <div className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-xl border border-hairline/40">
           {cards === null ? (
             <div className="flex items-center justify-center gap-2 py-8 text-[13px] text-ink-secondary">
-              <Loader2 size={14} className="animate-spin" /> Loading catalog…
+              <Loader2 size={14} className="animate-spin" /> カタログを読み込み中…
             </div>
           ) : (
             visible.map((card, i) => {

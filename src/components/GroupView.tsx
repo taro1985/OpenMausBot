@@ -4,7 +4,7 @@
 // bot messages carry a small maus + name cluster label. Bots reply only
 // when @mentioned (the composer's @ picker knows the members).
 import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, Pin } from "lucide-react";
+import { ArrowDown, Menu, Pin } from "lucide-react";
 import { useStore, useStreaming, formatTime, type Bot, type Group } from "@/state/store";
 import { MausAvatar } from "./Avatar";
 import { normalizeState } from "@/lib/mascot";
@@ -170,8 +170,17 @@ export function GroupView({ group }: { group: Group }) {
   return (
     <main className="relative flex h-full min-w-0 flex-1 flex-col bg-app">
       {/* Header: name left, member mauses right — their motion IS the status */}
-      <div className={cn("flex items-center justify-between px-5 py-3", isWin && "pr-[148px]")} style={drag}>
-        <span className="text-[15px] font-semibold text-ink">{group.name}</span>
+      <div className={cn("flex items-center justify-between px-3 md:px-5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-3 border-b border-hairline/20 md:border-b-0", isWin && "pr-[148px]")} style={drag}>
+        <div className="flex items-center gap-2" style={noDrag}>
+          <button
+            onClick={() => dispatch({ type: "toggleMobileSidebar" })}
+            className="rounded-lg p-1.5 text-ink-secondary hover:bg-raised/50 hover:text-ink md:hidden"
+            title="Open menu"
+          >
+            <Menu size={20} />
+          </button>
+          <span className="text-[15px] font-semibold text-ink truncate max-w-[140px] sm:max-w-none">{group.name}</span>
+        </div>
         <div className="flex items-center gap-1.5" style={noDrag}>
           {members.map((b) => (
             <span key={b.id} title={`${b.name}${group.busyBotId === b.id ? " — working…" : ""}`}>
@@ -203,7 +212,7 @@ export function GroupView({ group }: { group: Group }) {
                   setBulletinOpen(false);
                 }
               }}
-              placeholder="Room instructions — every bot in this room follows them (who does what, tone, goals, a task checklist…)"
+              placeholder="ルームの指示 — このルームにいるすべてのボットがこれに従います（役割分担、トーン、目的、タスクリストなど…）"
               rows={4}
               className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-ink placeholder:text-ink-secondary focus:outline-none"
             />
@@ -212,11 +221,11 @@ export function GroupView({ group }: { group: Group }) {
           <button
             onClick={() => setBulletinOpen(true)}
             className="mb-1 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-raised/40"
-            title="Room bulletin — shared instructions for every bot here"
+            title="ルーム掲示板 — ここにいる全ボット共通の指示"
           >
             <Pin size={12} className="shrink-0 text-ink-secondary" />
             <span className={cn("truncate text-[12.5px]", group.bulletin ? "text-ink-secondary" : "text-ink-secondary/60")}>
-              {group.bulletin.split("\n")[0] || "Add room instructions…"}
+              {group.bulletin.split("\n")[0] || "ルームの指示を追加…"}
             </span>
           </button>
         )}
@@ -225,7 +234,7 @@ export function GroupView({ group }: { group: Group }) {
       {/* Transcript */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-5 [overflow-anchor:none]"
+        className="flex-1 overflow-y-auto px-3 sm:px-5 [overflow-anchor:none]"
         onWheel={(e) => {
           if (e.deltaY < 0) setFollow(false);
           else if (atEnd()) setFollow(true);
@@ -288,7 +297,7 @@ export function GroupView({ group }: { group: Group }) {
             scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
           }}
           aria-label="Jump to latest messages"
-          className="animate-pop-in absolute bottom-24 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-hairline/40 bg-raised px-3 py-1.5 text-[12.5px] text-ink shadow-lg hover:bg-raised-hover"
+          className="animate-pop-in absolute bottom-[max(6rem,calc(6rem+env(safe-area-inset-bottom)))] left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-hairline/40 bg-raised px-3 py-1.5 text-[12.5px] text-ink shadow-lg hover:bg-raised-hover"
         >
           <ArrowDown size={13} /> Jump to latest
         </button>

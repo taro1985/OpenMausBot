@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Laptop,
   Loader2,
+  Menu,
   Pause,
   Play,
   Plus,
@@ -594,34 +595,43 @@ export function RoutinesPage() {
 
   return (
     <main className="flex h-full min-w-0 flex-1 flex-col bg-app">
-      <header className="shrink-0 px-5 pb-4 pt-4">
+      <header className="shrink-0 px-3 sm:px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] border-b border-hairline/20 md:border-b-0">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2.5"><CalendarDays size={21} className="text-accent" /><h1 className="text-[20px] font-semibold tracking-tight text-ink">Routines</h1></div>
-            <p className="mt-1 text-[12.5px] text-ink-secondary">Scheduled work runs through your real MAUS team while OpenMausBot is open.</p>
+          <div className="flex items-start gap-2">
+            <button
+              onClick={() => dispatch({ type: "toggleMobileSidebar" })}
+              className="rounded-lg p-1.5 text-ink-secondary hover:bg-raised/50 hover:text-ink md:hidden mt-0.5"
+              title="メニューを開く"
+            >
+              <Menu size={20} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2.5"><CalendarDays size={21} className="text-accent" /><h1 className="text-[20px] font-semibold tracking-tight text-ink">ルーティン</h1></div>
+              <p className="mt-1 text-[12.5px] text-ink-secondary">OpenMausBotが起動している間、スケジュールされたタスクがボットチームによって定期実行されます。</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            {running > 0 && <span className="flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/10 px-2.5 py-1.5 text-[11px] text-accent"><Loader2 size={12} className="animate-spin" />{running} active</span>}
-            {unseenFailures > 0 && <span className="flex items-center gap-1.5 rounded-full border border-danger/25 bg-danger/10 px-2.5 py-1.5 text-[11px] text-danger"><CircleAlert size={12} />{unseenFailures} need attention</span>}
-            {paused.length > 0 && <button onClick={() => setPausedOpen(true)} className="flex items-center gap-1.5 rounded-full border border-hairline/50 bg-panel px-2.5 py-1.5 text-[11px] text-ink-secondary hover:bg-raised hover:text-ink"><Pause size={12} />{paused.length} paused</button>}
-            <button onClick={() => setEditor("new")} disabled={visibleBots.length === 0} className="flex items-center gap-2 rounded-xl bg-accent px-3.5 py-2 text-[13px] font-medium text-white shadow-lg shadow-accent/10 hover:brightness-110 disabled:opacity-40"><Plus size={15} />New routine</button>
+            {running > 0 && <span className="flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/10 px-2.5 py-1.5 text-[11px] text-accent"><Loader2 size={12} className="animate-spin" />{running} 件実行中</span>}
+            {unseenFailures > 0 && <span className="flex items-center gap-1.5 rounded-full border border-danger/25 bg-danger/10 px-2.5 py-1.5 text-[11px] text-danger"><CircleAlert size={12} />{unseenFailures} 件要確認</span>}
+            {paused.length > 0 && <button onClick={() => setPausedOpen(true)} className="flex items-center gap-1.5 rounded-full border border-hairline/50 bg-panel px-2.5 py-1.5 text-[11px] text-ink-secondary hover:bg-raised hover:text-ink"><Pause size={12} />{paused.length} 件停止中</button>}
+            <button onClick={() => setEditor("new")} disabled={visibleBots.length === 0} className="flex items-center gap-2 rounded-xl bg-accent px-3.5 py-2 text-[13px] font-medium text-white shadow-lg shadow-accent/10 hover:brightness-110 disabled:opacity-40"><Plus size={15} />新規ルーティン</button>
           </div>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <div className="flex items-center rounded-xl border border-hairline/50 bg-panel p-0.5">
-            <button onClick={() => move(-1)} className="rounded-lg p-2 text-ink-secondary hover:bg-raised hover:text-ink" aria-label="Previous dates"><ChevronLeft size={16} /></button>
-            <button onClick={goToday} className="px-2.5 py-1.5 text-[12px] font-medium text-ink hover:text-accent">Today</button>
-            <button onClick={() => move(1)} className="rounded-lg p-2 text-ink-secondary hover:bg-raised hover:text-ink" aria-label="Next dates"><ChevronRight size={16} /></button>
+            <button onClick={() => move(-1)} className="rounded-lg p-2 text-ink-secondary hover:bg-raised hover:text-ink" aria-label="前の期間"><ChevronLeft size={16} /></button>
+            <button onClick={goToday} className="px-2.5 py-1.5 text-[12px] font-medium text-ink hover:text-accent">今日</button>
+            <button onClick={() => move(1)} className="rounded-lg p-2 text-ink-secondary hover:bg-raised hover:text-ink" aria-label="次の期間"><ChevronRight size={16} /></button>
           </div>
           <div className="min-w-[190px] px-2 text-[14px] font-semibold text-ink">
             {new Date(rangeStart).toLocaleDateString([], { month: "long", year: "numeric" })}
           </div>
           <select value={botFilter} onChange={(event) => setBotFilter(event.target.value)} className="rounded-xl border border-hairline/50 bg-panel px-3 py-2 text-[12px] text-ink outline-none focus:border-accent/60">
-            <option value="all">All MAUSes</option>
+            <option value="all">すべてのボット</option>
             {visibleBots.map((bot) => <option key={bot.id} value={bot.id}>{bot.name}</option>)}
           </select>
           <div className="ml-auto flex rounded-xl bg-panel p-1">
-            {([1, 3, 7] as const).map((days) => <button key={days} onClick={() => { setViewDays(days); setAnchor(days === 7 ? startOfWeek(anchor) : startOfDay(anchor)); }} className={cn("rounded-lg px-3 py-1.5 text-[11px] font-medium", viewDays === days ? "bg-raised text-ink shadow" : "text-ink-secondary hover:text-ink")}>{days === 1 ? "Day" : days === 3 ? "3 days" : "Week"}</button>)}
+            {([1, 3, 7] as const).map((days) => <button key={days} onClick={() => { setViewDays(days); setAnchor(days === 7 ? startOfWeek(anchor) : startOfDay(anchor)); }} className={cn("rounded-lg px-3 py-1.5 text-[11px] font-medium", viewDays === days ? "bg-raised text-ink shadow" : "text-ink-secondary hover:text-ink")}>{days === 1 ? "日" : days === 3 ? "3日間" : "週"}</button>)}
           </div>
         </div>
       </header>

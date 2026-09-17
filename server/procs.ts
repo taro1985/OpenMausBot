@@ -29,12 +29,22 @@ export function spawnCli(
   opts: SpawnOptions,
 ): ChildProcessByStdio<Writable, Readable, Readable> {
   const resolved = resolveCli(cli, args);
-  return spawn(resolved.command, resolved.args, {
+  const child = spawn(resolved.command, resolved.args, {
     ...opts,
     // posix: own process group so kill(-pid) reaps child MCP servers;
     // win32: taskkill /T does the reaping instead (see killCliTree)
     ...(process.platform === "win32" ? { windowsHide: true } : { detached: true }),
   }) as ChildProcessByStdio<Writable, Readable, Readable>; // callers always pipe all three
+
+  const ignoreEpipe = (err: any) => {
+    if (err && (err.code === "EPIPE" || String(err.message).includes("EPIPE"))) return;
+  };
+  child.stdin?.on("error", ignoreEpipe);
+  child.stdout?.on("error", ignoreEpipe);
+  child.stderr?.on("error", ignoreEpipe);
+  child.on("error", ignoreEpipe);
+
+  return child;
 }
 
 export function execCli(

@@ -8,3 +8,15 @@ electron/resources/speech-helper
 electron/resources/OpenMausBot Speech.app
 release
 .omb-scratch
+
+# Local environment & secrets
+.env
+.env.*
+!.env.example
+
+# Local notes & temporary files
+keep.md
+ADDRESS_KEEP.txt
+qrcode.png
+antigravity-conversation-fix/
+tasks/

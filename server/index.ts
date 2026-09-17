@@ -3,6 +3,17 @@
 // folds one SSE event stream; every provider process runs here.
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
+
+// Ignore EPIPE errors on stdout/stderr when parent pipes are closed
+process.on("uncaughtException", (err: any) => {
+  if (err && (err.code === "EPIPE" || String(err.message).includes("EPIPE"))) return;
+  console.error("Uncaught exception:", err);
+});
+for (const stream of [process.stdout, process.stderr]) {
+  stream?.on?.("error", (err: any) => {
+    if (err && (err.code === "EPIPE" || String(err.message).includes("EPIPE"))) return;
+  });
+}
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -864,11 +875,50 @@ function readBody(req: IncomingMessage): Promise<any> {
   });
 }
 
+// ── Auth & Token Store ──────────────────────────────────────────────────
+const AUTH_USER = process.env.AUTH_USER || "admin";
+const AUTH_PASS = process.env.AUTH_PASS || "";
+const activeAuthTokens = new Set<string>();
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
   const path = url.pathname;
   const method = req.method ?? "GET";
   try {
+    // ── public auth endpoints ──────────────────────────────────────────
+    if (method === "POST" && path === "/api/login") {
+      const body = await readBody(req);
+      const username = String(body.username ?? "");
+      const password = String(body.password ?? "");
+      if (username === AUTH_USER && password === AUTH_PASS) {
+        const token = randomBytes(32).toString("hex");
+        activeAuthTokens.add(token);
+        return json(res, 200, { token, user: { username: AUTH_USER } });
+      }
+      return json(res, 401, { error: "ユーザー名またはパスワードが正しくありません" });
+    }
+
+    // ── api authentication guard ───────────────────────────────────────
+    if (path.startsWith("/api/") && !path.startsWith("/api/internal/")) {
+      const authHeader = req.headers.authorization;
+      const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null;
+      const queryToken = url.searchParams.get("token");
+      const token = bearerToken || queryToken;
+
+      if (!token || !activeAuthTokens.has(token)) {
+        return json(res, 401, { error: "unauthorized" });
+      }
+
+      if (method === "GET" && path === "/api/auth/check") {
+        return json(res, 200, { authenticated: true, user: { username: AUTH_USER } });
+      }
+
+      if (method === "POST" && path === "/api/logout") {
+        if (token) activeAuthTokens.delete(token);
+        return json(res, 200, { success: true });
+      }
+    }
+
     // ── internal peer-agent comms (localhost + shared token only) ──────
     // The agents-proxy (spawned inside a bot's agent process) calls these to
     // discover peers and hand a message to one. Not part of the public API.
@@ -1471,7 +1521,7 @@ const server = createServer(async (req, res) => {
 
     // packaged app: the server serves the built UI too (window → :8799 for
     // everything, no dev proxy to die). OMB_STATIC_DIR is set by Electron.
-    if (method === "GET" && !path.startsWith("/api/") && STATIC_DIR) {
+    if ((method === "GET" || method === "HEAD") && !path.startsWith("/api/") && STATIC_DIR) {
       const safe = path === "/" ? "/index.html" : path.replace(/\.\./g, "");
       const file = join(STATIC_DIR, safe);
       try {
@@ -1497,8 +1547,8 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, "127.0.0.1", () => {
-  console.log(`openmausbot server on http://127.0.0.1:${PORT}`);
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`openmausbot server on http://0.0.0.0:${PORT}`);
 });
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

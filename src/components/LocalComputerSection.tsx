@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, Check, Circle, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { Card, CommandLine } from "./SettingsPrimitives";
 import { cn } from "@/lib/cn";
+import { getAuthToken } from "@/lib/authClient";
 
 interface Status {
   platform: string;
@@ -72,7 +73,11 @@ export function LocalComputerSection() {
     const poll = async () => {
       controller = new AbortController();
       try {
-        const response = await fetch("/api/local-computer", { signal: controller.signal });
+        const token = getAuthToken();
+        const response = await fetch("/api/local-computer", {
+          signal: controller.signal,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         if (!response.ok) throw new Error(`status request failed: ${response.status}`);
         const next = (await response.json()) as Status;
         if (active) setStatus(next);

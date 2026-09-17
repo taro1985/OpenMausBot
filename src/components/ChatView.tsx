@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Copy,
   Loader2,
+  Menu,
   Monitor,
   Pencil,
   RefreshCw,
@@ -40,8 +41,8 @@ function dayLabel(at: number): string {
   const now = new Date();
   const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86_400_000);
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
+  if (diffDays === 0) return "今日";
+  if (diffDays === 1) return "昨日";
   return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 }
 
@@ -63,8 +64,8 @@ function CopyButton({ text, className }: { text: string; className?: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 1200);
       }}
-      aria-label="Copy message"
-      title="Copy message"
+      aria-label="メッセージをコピー"
+      title="メッセージをコピー"
       className={cn(
         "rounded-md p-1.5 text-ink-secondary opacity-0 transition-opacity hover:bg-raised hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100",
         className,
@@ -93,7 +94,7 @@ function ThinkingStrip({ text, active }: { text: string; active: boolean }) {
         >
           <Brain size={13} className="text-ink-secondary" />
           <span className={cn(active ? "thinking-shimmer animate-shimmer" : "text-ink-secondary")}>
-            {active ? "Thinking…" : "Thought process"}
+            {active ? "思考中…" : "思考プロセス"}
           </span>
           <ChevronDown size={12} className={cn("text-ink-secondary transition-transform", open && "rotate-180")} />
         </button>
@@ -623,46 +624,54 @@ export function ChatView({ bot }: { bot: Bot }) {
       <CallOverlay bot={bot} />
       {/* Header */}
       <div
-        className={cn("flex items-center justify-between px-5 py-3", isWin && "pr-[148px]")}
+        className={cn("flex items-center justify-between px-2.5 sm:px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 sm:pb-3 border-b border-hairline/20 md:border-b-0 min-w-0 shrink-0", isWin && "pr-[148px]")}
         style={drag}
       >
-        <button
-          onClick={() => dispatch({ type: "toggleSettings" })}
-          className="flex items-center gap-2.5 rounded-lg px-1.5 py-1 hover:bg-raised/50"
-          title="Bot settings"
-          style={noDrag}
-        >
-          <MausAvatar
-            color={bot.color}
-            state={stateForBot({ ...bot, messages })}
-            size={28}
-            motion={mascotMotion?.kind ?? "none"}
-            motionKey={mascotMotion?.nonce ?? 0}
-          />
-          <span className="text-[15px] font-semibold text-ink">{bot.name}</span>
-          {bot.busy && <Loader2 size={14} className="animate-spin text-ink-secondary" />}
-        </button>
-        <div className="flex items-center gap-2" style={noDrag}>
+        <div className="flex items-center gap-1 sm:gap-2 min-w-0" style={noDrag}>
+          <button
+            onClick={() => dispatch({ type: "toggleMobileSidebar" })}
+            className="rounded-lg p-1.5 text-ink-secondary hover:bg-raised/50 hover:text-ink md:hidden shrink-0"
+            title="メニューを開く"
+          >
+            <Menu size={20} />
+          </button>
+          <button
+            onClick={() => dispatch({ type: "toggleSettings" })}
+            className="flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-raised/50 min-w-0"
+            title="ボット設定"
+          >
+            <MausAvatar
+              color={bot.color}
+              state={stateForBot({ ...bot, messages })}
+              size={26}
+              motion={mascotMotion?.kind ?? "none"}
+              motionKey={mascotMotion?.nonce ?? 0}
+            />
+            <span className="text-[14.5px] sm:text-[15px] font-semibold text-ink truncate max-w-[75px] xs:max-w-[120px] sm:max-w-none">{bot.name}</span>
+            {bot.busy && <Loader2 size={13} className="animate-spin text-ink-secondary shrink-0" />}
+          </button>
+        </div>
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0" style={noDrag}>
           {bot.busy && (
             <button
               onClick={() => dispatch({ type: "interrupt", botId: bot.id })}
-              className="flex items-center gap-1.5 rounded-full border border-hairline/40 bg-raised/60 px-2.5 py-1 text-[13px] text-ink-secondary hover:bg-raised hover:text-ink"
-              title="Stop this turn"
+              className="flex items-center gap-1 rounded-full border border-hairline/40 bg-raised/60 px-2 py-1 text-[12px] text-ink-secondary hover:bg-raised hover:text-ink shrink-0"
+              title="このターンを停止"
             >
               <Square size={12} className="fill-current" />
-              Stop
+              <span className="hidden sm:inline">停止</span>
             </button>
           )}
+          <CallButton bot={bot} />
           <TaskPicker bot={bot} />
           <ModelPicker bot={bot} />
-          <CallButton bot={bot} />
           <button
             onClick={() => dispatch({ type: "toggleComputer" })}
             className={cn(
-              "rounded-md p-1.5 hover:bg-raised",
-              state.computerOpen ? "text-accent" : "text-ink-secondary hover:text-ink",
+              "rounded-lg p-1.5 text-ink-secondary hover:bg-raised hover:text-ink",
+              state.computerOpen && "bg-raised text-ink",
             )}
-            title="Bot's computer"
+            title="ボットのコンピューターを開く"
           >
             <Monitor size={18} />
           </button>
@@ -678,29 +687,24 @@ export function ChatView({ bot }: { bot: Bot }) {
         </div>
       )}
 
-      {/* Messages */}
+      {/* Transcript */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-5 [overflow-anchor:none]"
-        onWheel={(e) => {
-          if (e.deltaY < 0) setFollow(false);
-          else if (atEnd()) setFollow(true);
+        className="flex-1 overflow-y-auto px-2 sm:px-5 py-4"
+        onTouchStart={(e) => {
+          touchY.current = e.touches[0]?.clientY ?? 0;
         }}
-        onTouchStart={(e) => (touchY.current = e.touches[0]?.clientY ?? 0)}
         onTouchMove={(e) => {
           const y = e.touches[0]?.clientY ?? 0;
           if (y > touchY.current + 4) setFollow(false);
           else if (atEnd()) setFollow(true);
-        }}
-        onScroll={() => {
-          if (!follow && atEnd()) setFollow(true);
         }}
       >
         <div
           className="mx-auto flex max-w-[900px] flex-col gap-3 pb-4"
           role="log"
           aria-live="polite"
-          aria-label={`Conversation with ${bot.name}`}
+          aria-label={`${bot.name} との会話`}
         >
           <MessagesList
             bot={bot}
@@ -717,7 +721,7 @@ export function ChatView({ bot }: { bot: Bot }) {
             <div className="flex justify-start">
               <div className="flex items-center gap-2 rounded-full border border-hairline/40 bg-panel px-3 py-1.5 text-[13px] text-ink-secondary">
                 <Loader2 size={13} className="animate-spin" />
-                Setting up this bot's computer…
+                ボットのコンピューターをセットアップ中…
               </div>
             </div>
           )}
@@ -745,10 +749,10 @@ export function ChatView({ bot }: { bot: Bot }) {
       {!follow && (
         <button
           onClick={jumpToLatest}
-          aria-label="Jump to latest messages"
-          className="animate-pop-in absolute bottom-24 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-hairline/40 bg-raised px-3 py-1.5 text-[12.5px] text-ink shadow-lg hover:bg-raised-hover"
+          aria-label="最新メッセージへ移動"
+          className="animate-pop-in absolute bottom-[max(6rem,calc(6rem+env(safe-area-inset-bottom)))] left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-hairline/40 bg-raised px-3 py-1.5 text-[12.5px] text-ink shadow-lg hover:bg-raised-hover"
         >
-          <ArrowDown size={13} /> Jump to latest
+          <ArrowDown size={13} /> 最新へ移動
         </button>
       )}
 

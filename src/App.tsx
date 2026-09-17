@@ -49,10 +49,10 @@ function Shell() {
   }, [state.bots, state.selectedId, dispatch]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full w-full flex-col overflow-hidden">
       {/* fixed-position popup, bottom-left — outside the layout flow */}
       <UpdateBanner />
-      <div className="relative flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
       <Sidebar />
       {state.activeView === "routines" ? (
         <RoutinesPage />
@@ -61,7 +61,7 @@ function Shell() {
       ) : bot ? (
         <ChatView bot={bot} />
       ) : (
-        <main className="flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-app text-ink-secondary">
+        <main className="flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-app px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] text-ink-secondary">
           <Loader2 size={20} className="animate-spin" />
           <div className="text-[14px]">
             {state.connected ? "No bots yet" : "Connecting to the bot server…"}
@@ -82,11 +82,38 @@ function Shell() {
   );
 }
 
+import { checkAuth, getAuthToken } from "@/lib/authClient";
+import { LoginPage } from "@/components/LoginPage";
+
 export default function App() {
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [gated, setGated] = useState(() => !emailGateDone());
+
   useEffect(() => {
     initAnalytics();
+    async function verify() {
+      if (!getAuthToken()) {
+        setAuthenticated(false);
+        return;
+      }
+      const ok = await checkAuth();
+      setAuthenticated(ok);
+    }
+    void verify();
   }, []);
+
+  if (authenticated === null) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-[#0d0f17] text-white">
+        <Loader2 size={24} className="animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
+  if (!authenticated) {
+    return <LoginPage onLoginSuccess={() => setAuthenticated(true)} />;
+  }
+
   return (
     <DesktopCapabilitiesProvider>
       <StoreProvider>

@@ -94,6 +94,7 @@ export async function attachmentsFromDroppedFiles<T extends DroppedFile>(
         // A browser or older desktop shell has no disk path to expose.
       }
       if (path) return { attachment: fileAttachment(file.name, path, file.size) };
+
       if (isInlineText(file) && file.size <= INLINE_DROP_LIMIT) {
         try {
           return { attachment: pasteAttachment(await file.text()) };
@@ -101,6 +102,19 @@ export async function attachmentsFromDroppedFiles<T extends DroppedFile>(
           // Treat an unreadable browser drag like any other pathless file.
         }
       }
+
+      // Browser mode: handle images or small files via Data URL
+      if (file.size <= 5 * 1024 * 1024) {
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          if (dataUrl) {
+            return { attachment: fileAttachment(file.name, dataUrl, file.size) };
+          }
+        } catch {
+          // Treat as unreadable
+        }
+      }
+
       return { rejectedName: file.name };
     }),
   );
@@ -113,6 +127,66 @@ export async function attachmentsFromDroppedFiles<T extends DroppedFile>(
       "rejectedName" in result && result.rejectedName ? [result.rejectedName] : [],
     ),
   };
+}
+
+function readFileAsDataUrl(file: unknown): Promise<string> {
+  return new Promise((resolve) => {
+    const g = globalThis as any;
+    const Reader = g.FileReader;
+    if (typeof g.window === "undefined" || !Reader || typeof g.Blob === "undefined" || !(file instanceof g.Blob)) {
+      resolve("");
+      return;
+    }
+
+    const blob = file as Blob;
+    const isImage = blob.type ? blob.type.startsWith("image/") : true;
+
+    const reader = new Reader();
+    reader.onload = () => {
+      const rawUrl = typeof reader.result === "string" ? reader.result : "";
+      if (!isImage || typeof g.document === "undefined" || !rawUrl) {
+        resolve(rawUrl);
+        return;
+      }
+
+      // Compress and resize image using Canvas
+      const img = new g.Image();
+      img.onload = () => {
+        try {
+          const maxDim = 450;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = g.document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL("image/jpeg", 0.55);
+            resolve(compressed || rawUrl);
+            return;
+          }
+        } catch {
+          // fallback to rawUrl on canvas error
+        }
+        resolve(rawUrl);
+      };
+      img.onerror = () => resolve(rawUrl);
+      img.src = rawUrl;
+    };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(blob);
+  });
 }
 
 function isInlineText(file: DroppedFile): boolean {

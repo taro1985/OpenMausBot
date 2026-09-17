@@ -72,7 +72,7 @@ export function SettingsPanel({ bot }: { bot: Bot }) {
   return (
     <aside className="animate-panel-in flex h-full w-[400px] shrink-0 flex-col border-l border-hairline/40 bg-panel">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3">
+      <div className="flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
         <button
           onClick={() => dispatch({ type: "toggleSettings", open: false })}
           className="rounded-md p-1 text-ink-secondary hover:bg-raised hover:text-ink"
@@ -88,7 +88,7 @@ export function SettingsPanel({ bot }: { bot: Bot }) {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-5">
+      <div className="flex-1 overflow-y-auto px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
         <div className="flex justify-center py-5">
           <MausAvatar
             color={bot.color}

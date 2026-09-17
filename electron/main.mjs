@@ -2,6 +2,17 @@ import { app, BrowserWindow, desktopCapturer, ipcMain, session, shell, systemPre
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+// Suppress EPIPE (broken pipe) errors from creating modal dialogs when stdio streams close
+process.on("uncaughtException", (err) => {
+  if (err && (err.code === "EPIPE" || err.message?.includes("EPIPE"))) return;
+  console.error("Uncaught exception:", err);
+});
+for (const stream of [process.stdout, process.stderr]) {
+  stream?.on?.("error", (err) => {
+    if (err && (err.code === "EPIPE" || err.message?.includes("EPIPE"))) return;
+  });
+}
 import { startCua, stopCua, registerCuaIpc } from "./cua.mjs";
 import { startSpeech, stopSpeech } from "./speech.mjs";
 import { startUpdater, registerUpdaterIpc } from "./updater.mjs";

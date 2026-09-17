@@ -3,6 +3,7 @@ import { Check, AlertTriangle, Loader2, Mic } from "lucide-react";
 import { MausAvatar } from "./Avatar";
 import { identifyEmail, setEmailGateDone, track } from "@/lib/analytics";
 import { useDesktopCapabilities } from "./DesktopCapabilities";
+import { api } from "@/state/store";
 
 // Three-step first-run onboarding: who you are (email), what's installed
 // (live engine checks from the harness), what the app may use (TCC).
@@ -56,9 +57,8 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
     identifyEmail(email.trim().toLowerCase());
     // persisted server-side (~/.openmausbot/config.json) — the sidebar
     // footer reads it back through /api/config
-    void fetch("/api/config", {
+    void api("/api/config", {
       method: "PUT",
-      headers: { "content-type": "application/json" },
       body: JSON.stringify({ profile: { name: name.trim(), email: email.trim().toLowerCase() } }),
     }).catch(() => {});
     setStep(1);
@@ -67,9 +67,8 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     track("onboarding_step", { step });
     if (step === 1 && !instances) {
-      fetch("/api/instances")
-        .then((r) => r.json())
-        .then((d) => setInstances(d.instances ?? []))
+      api("/api/instances")
+        .then((d: any) => setInstances(d.instances ?? []))
         .catch(() => setInstances([]));
     }
     if (step === 2 && capabilities.dictation.available) {

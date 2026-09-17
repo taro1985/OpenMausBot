@@ -17,19 +17,13 @@ import {
   Settings,
   X,
 } from "lucide-react";
-import { useStore, type Bot } from "@/state/store";
+import { useStore, api, type Bot } from "@/state/store";
 import type { Routine } from "@/lib/routines";
 import { ApiKeyRow } from "./ApiKeys";
 import { cn } from "@/lib/cn";
 import { useDesktopCapabilities } from "./DesktopCapabilities";
 import { RoutineEditor } from "./RoutinesPage";
 
-async function api(path: string, init?: RequestInit): Promise<any> {
-  const res = await fetch(path, { headers: { "content-type": "application/json" }, ...init });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error ?? `${res.status} ${res.statusText}`);
-  return body;
-}
 
 type Phase =
   | "checking"
@@ -245,7 +239,7 @@ export function ComputerPanel({ bot }: { bot: Bot }) {
   return (
     <aside className="animate-panel-in flex h-full w-[400px] shrink-0 flex-col border-l border-hairline/40 bg-panel">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3">
+      <div className="flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
         <button
           onClick={() => dispatch({ type: "toggleSettings", open: true })}
           className="rounded-md p-1 text-ink-secondary hover:bg-raised hover:text-ink"
@@ -262,7 +256,7 @@ export function ComputerPanel({ bot }: { bot: Bot }) {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-5">
+      <div className="flex-1 overflow-y-auto px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           {/* Screen preview */}
           <div className="mb-1.5 mt-2 flex items-center justify-between text-[13px] text-ink-secondary">
             <span>{bot.name}'s screen</span>

@@ -41,9 +41,10 @@ export function TaskPicker({ bot }: { bot: Bot }) {
         onClick={() => dispatch({ type: "newTask", botId: bot.id })}
         disabled={bot.busy}
         title={bot.busy ? "Let this turn finish first" : "New task — a fresh context on this bot"}
-        className="flex items-center gap-1 rounded-full border border-hairline/40 px-2.5 py-1 text-[12.5px] text-ink-secondary hover:bg-raised hover:text-ink disabled:opacity-40"
+        className="flex items-center gap-1 rounded-full border border-hairline/40 px-2 py-1 text-[12px] sm:text-[12.5px] text-ink-secondary hover:bg-raised hover:text-ink disabled:opacity-40 shrink-0"
       >
-        <Plus size={12} /> Task
+        <Plus size={12} />
+        <span className="hidden xs:inline">Task</span>
       </button>
     );
   }
@@ -55,15 +56,15 @@ export function TaskPicker({ bot }: { bot: Bot }) {
   };
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative shrink-0" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
         title="Switch task"
-        className="flex max-w-[220px] items-center gap-1.5 rounded-full border border-hairline/40 px-2.5 py-1 text-[12.5px] text-ink-secondary hover:bg-raised hover:text-ink"
+        className="flex max-w-[90px] sm:max-w-[220px] items-center gap-1 sm:gap-1.5 rounded-full border border-hairline/40 px-2 py-1 text-[12px] sm:text-[12.5px] text-ink-secondary hover:bg-raised hover:text-ink shrink-0"
       >
         <span className="truncate">{current?.title ?? "Task"}</span>
         <span className="shrink-0 tabular-nums opacity-60">{tasks.length}</span>
-        <ChevronDown size={12} className="shrink-0" />
+        <ChevronDown size={11} className="shrink-0" />
       </button>
 
       {open && (

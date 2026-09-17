@@ -1,12 +1,13 @@
 import { track } from "@/lib/analytics";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Clock, Mic, Square, X } from "lucide-react";
+import { ArrowUp, Clock, Paperclip, Square, X } from "lucide-react";
 import { useStore, visibleMessages, type Bot, type Group } from "@/state/store";
 import { cn } from "@/lib/cn";
 import { useComposerDraft } from "@/lib/drafts";
 import { MausAvatar } from "./Avatar";
 import { ComposerAttachments } from "./ComposerAttachments";
 import {
+  attachmentsFromDroppedFiles,
   composeMessage,
   isLongPaste,
   pasteAttachment,
@@ -14,7 +15,6 @@ import {
 } from "@/lib/composer-attachments";
 import { normalizeState } from "@/lib/mascot";
 import { PendingApprovalActions, PendingApprovalPanel, pendingApprovals } from "./PendingApproval";
-import { useDesktopCapabilities } from "./DesktopCapabilities";
 
 /** The active @mention query at the caret: the text between an `@` that
  * starts a word and the caret. null = no mention being typed. */
@@ -40,7 +40,6 @@ export function Composer({
   onEditLast?: () => void;
 }) {
   const { state, dispatch } = useStore();
-  const { capabilities } = useDesktopCapabilities();
   // Unified target: a 1:1 bot thread or a room. In a room the @ picker
   // offers the members (Buzz rule: only mentioned bots reply).
   const busy = group ? Boolean(group.busyBotId) : Boolean(bot?.busy);
@@ -70,14 +69,10 @@ export function Composer({
     (id: string) => setAttachments((prev) => prev.filter((a) => a.id !== id)),
     [setAttachments],
   );
-  const [recording, setRecording] = useState(false);
-  const [speechError, setSpeechError] = useState<string | null>(null);
   const [caret, setCaret] = useState(0);
   const [highlight, setHighlight] = useState(0);
   const [dismissedAt, setDismissedAt] = useState<number | null>(null); // Esc'd this @
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  // what was typed before the mic went on — partials append after it
-  const baseText = useRef("");
 
   // ── @mention picker (tag another bot; the agent reaches it via ask_bot) ──
   const mention = mentionQueryAt(text, caret);
@@ -150,56 +145,21 @@ export function Composer({
     }
   }, [busy, queued, bot, group, dispatch]);
 
-  // native dictation: partials stream into the input while the Swift
-  // helper runs; the final transcript stays in the box, ready to edit/send
-  useEffect(() => {
-    if (!recording) return;
-    const bridge = window.ogb;
-    if (!bridge) {
-      setRecording(false);
-      return;
-    }
-    setSpeechError(null);
-    const offTranscript = bridge.onSpeechTranscript((line) => {
-      if (typeof line.text === "string") {
-        const base = baseText.current;
-        setText(base ? `${base} ${line.text}` : line.text);
-      }
-    });
-    const offEnd = bridge.onSpeechEnd(({ code }) => {
-      setRecording(false);
-      if (code === 2) {
-        setSpeechError("Dictation is only available on macOS for now.");
-      } else if (code === 1) {
-        setSpeechError(
-          "Dictation needs Microphone + Speech Recognition access — System Settings → Privacy & Security.",
-        );
-      }
-    });
-    void bridge.speechStart();
-    return () => {
-      offTranscript();
-      offEnd();
-      void bridge.speechStop();
-    };
-  }, [recording]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const toggleMic = () => {
-    if (!capabilities.dictation.available || !window.ogb) {
-      setSpeechError("Dictation isn't available in this build.");
-      return;
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    const pathForFile = (file: File) => window.ogb?.getPathForFile?.(file) ?? "";
+    const { attachments: newAttachments } = await attachmentsFromDroppedFiles(files, pathForFile);
+    if (newAttachments.length > 0) {
+      addAttachments(newAttachments);
     }
-    baseText.current = text.trim();
-    setRecording((r) => !r);
+    if (e.target) e.target.value = "";
   };
 
   return (
-    <div className="px-5 pb-5 pt-2">
-      {speechError && (
-        <div className="mx-auto mb-2 max-w-[900px] rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[12px] text-warning">
-          {speechError}
-        </div>
-      )}
+    <div className="px-[max(0.625rem,env(safe-area-inset-left))] sm:px-5 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pr-[max(0.625rem,env(safe-area-inset-right))] shrink-0">
       <div className="relative mx-auto max-w-[900px]">
         {queued && (
           <div className="mb-2 flex items-center gap-2 rounded-lg border border-hairline/40 bg-panel px-3 py-2 text-[12.5px] text-ink-secondary">
@@ -262,121 +222,119 @@ export function Composer({
           onAdd={addAttachments}
           onRemove={removeAttachment}
         />
-        <div className="flex items-end gap-2 rounded-3xl border border-hairline/40 bg-raised/60 py-2 pl-3 pr-2">
-        <textarea
-          ref={inputRef}
-          rows={1}
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            setCaret(e.target.selectionStart ?? e.target.value.length);
-            setDismissedAt(null);
-          }}
-          onPaste={(e) => {
-            // a wall of text becomes a chip instead of burying the input
-            const pasted = e.clipboardData.getData("text/plain");
-            if (!isLongPaste(pasted)) return;
-            e.preventDefault();
-            // Preserve native paste replacement semantics: if text was
-            // selected, the attachment replaces that selection.
-            const start = e.currentTarget.selectionStart;
-            const end = e.currentTarget.selectionEnd;
-            if (start !== end) {
-              setText(`${text.slice(0, start)}${text.slice(end)}`);
-              setCaret(start);
-            }
-            setAttachments((prev) => [...prev, pasteAttachment(pasted)]);
-          }}
-          onKeyUp={(e) => setCaret((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
-          onClick={(e) => setCaret((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
-          onKeyDown={(e) => {
-            if (pickerOpen) {
-              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-                e.preventDefault();
-                const delta = e.key === "ArrowDown" ? 1 : -1;
-                setHighlight((h) => (h + delta + candidates.length) % candidates.length);
-                return;
-              }
-              if (e.key === "Enter" || e.key === "Tab") {
-                e.preventDefault();
-                pickMention(candidates[highlight]);
-                return;
-              }
-              if (e.key === "Escape") {
-                e.preventDefault();
-                setDismissedAt(mention?.start ?? null);
-                return;
-              }
-            }
-            // an empty composer + ArrowUp = edit your last message (like a chat app)
-            if (e.key === "ArrowUp" && !hasContent && onEditLast) {
-              e.preventDefault();
-              onEditLast();
-              return;
-            }
-            // Shift+Enter inserts a newline; plain Enter sends
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              send();
-            }
-            if (e.key === "Escape" && recording) setRecording(false);
-          }}
-          disabled={Boolean(approval)}
-          placeholder={
-            approval
-              ? "Answer the approval above to continue"
-              : recording
-              ? "Listening…"
-              : busy
-                ? `${busyName} is working — Enter queues your message`
-                : group
-                  ? `Message ${group.name} — @ to bring a bot in`
-                  : `Message ${bot?.name ?? ""}`
-          }
-          aria-label={`Message ${group ? group.name : (bot?.name ?? "")}`}
-          className="max-h-40 w-full resize-none self-center bg-transparent py-1 text-[15px] leading-6 text-ink placeholder:text-ink-secondary focus:outline-none"
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          multiple
+          className="hidden"
         />
-        {busy && (
+        <div className="flex items-end gap-1.5 rounded-3xl border border-hairline/40 bg-raised/60 py-1.5 pl-2.5 pr-2">
           <button
-            onClick={() => {
-              if (group) dispatch({ type: "interruptGroup", groupId: group.id });
-              else if (bot) dispatch({ type: "interrupt", botId: bot.id });
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="ファイルを添付"
+            title="ファイルを添付"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full text-ink-secondary hover:bg-raised hover:text-ink pb-0.5"
+          >
+            <Paperclip size={18} />
+          </button>
+          <textarea
+            ref={inputRef}
+            rows={1}
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              setCaret(e.target.selectionStart ?? e.target.value.length);
+              setDismissedAt(null);
             }}
-            aria-label="Stop this turn"
-            className="flex size-8 shrink-0 items-center justify-center rounded-full text-ink-secondary hover:bg-raised hover:text-ink"
-            title="Stop"
-          >
-            <Square size={14} className="fill-current" />
-          </button>
-        )}
-        {!busy && !hasContent && capabilities.dictation.available && (
-          <button
-            onClick={toggleMic}
-            aria-label={recording ? "Stop dictation" : "Start dictation"}
-            className={cn(
-              "flex size-8 shrink-0 items-center justify-center rounded-full",
-              recording
-                ? "animate-pulse bg-danger/20 text-danger"
-                : "text-ink-secondary hover:bg-raised hover:text-ink",
-            )}
-            title={recording ? "Stop dictation (Esc)" : "Dictate"}
-          >
-            <Mic size={18} />
-          </button>
-        )}
-        {hasContent && (
-          <button
-            onClick={send}
-            aria-label={busy ? "Queue message" : "Send message"}
-            title={busy ? "Queue — sends when the bot finishes" : "Send"}
-            className={cn(
-              "flex size-8 shrink-0 items-center justify-center rounded-full text-white",
-              busy ? "bg-raised text-ink-secondary hover:bg-raised-hover" : "bg-accent hover:brightness-110",
-            )}
-          >
-            {busy ? <Clock size={15} /> : <ArrowUp size={17} />}
-          </button>
-        )}
+            onPaste={(e) => {
+              // a wall of text becomes a chip instead of burying the input
+              const pasted = e.clipboardData.getData("text/plain");
+              if (!isLongPaste(pasted)) return;
+              e.preventDefault();
+              // Preserve native paste replacement semantics: if text was
+              // selected, the attachment replaces that selection.
+              const start = e.currentTarget.selectionStart;
+              const end = e.currentTarget.selectionEnd;
+              if (start !== end) {
+                setText(`${text.slice(0, start)}${text.slice(end)}`);
+                setCaret(start);
+              }
+              setAttachments((prev) => [...prev, pasteAttachment(pasted)]);
+            }}
+            onKeyUp={(e) => setCaret((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
+            onClick={(e) => setCaret((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
+            onKeyDown={(e) => {
+              if (pickerOpen) {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  const delta = e.key === "ArrowDown" ? 1 : -1;
+                  setHighlight((h) => (h + delta + candidates.length) % candidates.length);
+                  return;
+                }
+                if (e.key === "Enter" || e.key === "Tab") {
+                  e.preventDefault();
+                  pickMention(candidates[highlight]);
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setDismissedAt(mention?.start ?? null);
+                  return;
+                }
+              }
+              // an empty composer + ArrowUp = edit your last message (like a chat app)
+              if (e.key === "ArrowUp" && !hasContent && onEditLast) {
+                e.preventDefault();
+                onEditLast();
+                return;
+              }
+              // Shift+Enter inserts a newline; plain Enter sends
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            disabled={Boolean(approval)}
+            placeholder={
+              approval
+                ? "継続するには上の承認リクエストに回答してください"
+                : busy
+                  ? `${busyName} が処理中 — Enterキーでメッセージをキューに追加`
+                  : group
+                    ? `${group.name} にメッセージを送信 — @ でボット呼出`
+                    : `${bot?.name ?? ""} にメッセージを送信…`
+            }
+            aria-label={`${group ? group.name : (bot?.name ?? "")} にメッセージを送信`}
+            className="max-h-40 w-full resize-none self-center bg-transparent py-1 text-[16px] sm:text-[15px] leading-6 text-ink placeholder:text-ink-secondary focus:outline-none"
+          />
+          {busy && (
+            <button
+              onClick={() => {
+                if (group) dispatch({ type: "interruptGroup", groupId: group.id });
+                else if (bot) dispatch({ type: "interrupt", botId: bot.id });
+              }}
+              aria-label="このターンを停止"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full text-ink-secondary hover:bg-raised hover:text-ink"
+              title="停止"
+            >
+              <Square size={14} className="fill-current" />
+            </button>
+          )}
+          {hasContent && (
+            <button
+              onClick={send}
+              aria-label={busy ? "メッセージをキューに追加" : "送信"}
+              title={busy ? "キューに追加 — ボットの完了後に送信されます" : "送信"}
+              className={cn(
+                "flex size-8 shrink-0 items-center justify-center rounded-full text-white",
+                busy ? "bg-raised text-ink-secondary hover:bg-raised-hover" : "bg-accent hover:brightness-110",
+              )}
+            >
+              {busy ? <Clock size={15} /> : <ArrowUp size={17} />}
+            </button>
+          )}
         </div>
       </div>
     </div>

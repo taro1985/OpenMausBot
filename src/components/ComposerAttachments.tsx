@@ -121,6 +121,13 @@ export function ComposerAttachments({
                 </div>
                 <div className="mt-1 text-[10.5px] text-ink-secondary/70">{pasteSummary(a)}</div>
               </Chip>
+            ) : a.path.startsWith("data:image/") ? (
+              <Chip key={a.id} label="FILE" title={a.name} onRemove={() => onRemove(a.id)}>
+                <div className="relative h-[64px] w-full overflow-hidden rounded-md bg-panel">
+                  <img src={a.path} alt={a.name} className="h-full w-full object-cover" />
+                </div>
+                <div className="mt-1 truncate text-[10.5px] text-ink-secondary/70">{a.name}</div>
+              </Chip>
             ) : (
               <Chip key={a.id} label="FILE" title={a.path} onRemove={() => onRemove(a.id)}>
                 <div className="flex h-[76px] items-center gap-2">

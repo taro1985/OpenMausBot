@@ -3,8 +3,9 @@
 // is the stuff shared by every bot: who you are, your keys, and the
 // machine your bots can borrow.
 import { useEffect, useRef, useState } from "react";
-import { KeyRound, Monitor, User, Volume2, X } from "lucide-react";
-import { useStore } from "@/state/store";
+import { KeyRound, LogOut, Monitor, User, Volume2, X } from "lucide-react";
+import { useStore, api } from "@/state/store";
+import { logout } from "@/lib/authClient";
 import { ApiKeyRow } from "./ApiKeys";
 import { useUpdaterState } from "@/lib/updater";
 import { LocalComputerSection } from "./LocalComputerSection";
@@ -15,10 +16,10 @@ import { cn } from "@/lib/cn";
 type SectionId = "general" | "connections" | "voice" | "computer";
 
 const SECTIONS: Array<{ id: SectionId; label: string; icon: typeof User }> = [
-  { id: "general", label: "General", icon: User },
-  { id: "connections", label: "Connections", icon: KeyRound },
-  { id: "voice", label: "Voice", icon: Volume2 },
-  { id: "computer", label: "Local computer", icon: Monitor },
+  { id: "general", label: "一般", icon: User },
+  { id: "connections", label: "API連携", icon: KeyRound },
+  { id: "voice", label: "音声設定", icon: Volume2 },
+  { id: "computer", label: "ローカルPC", icon: Monitor },
 ];
 
 /** Name + email, persisted to /api/config {profile} on blur. */
@@ -32,21 +33,24 @@ function ProfileFields() {
   }, [state.config?.profile?.name, state.config?.profile?.email]);
 
   const save = () => {
-    void fetch("/api/config", {
+    void api("/api/config", {
       method: "PUT",
-      headers: { "content-type": "application/json" },
       body: JSON.stringify({ profile: { name: name.trim(), email: email.trim().toLowerCase() } }),
     })
-      .then((r) => r.json())
-      .then((config) => dispatch({ type: "configStatus", config }))
+      .then((config: unknown) => dispatch({ type: "configStatus", config: config as any }))
       .catch(() => {});
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    window.location.reload();
   };
 
   const inputClass =
     "w-full rounded-lg border border-hairline/40 bg-inset px-3 py-2 text-[14px] text-ink placeholder:text-ink-secondary focus:border-hairline focus:outline-none";
   return (
     <div className="flex flex-col gap-3">
-      <input value={name} onChange={(e) => setName(e.target.value)} onBlur={save} placeholder="Your name" className={inputClass} />
+      <input value={name} onChange={(e) => setName(e.target.value)} onBlur={save} placeholder="お名前" className={inputClass} />
       <input
         type="email"
         value={email}
@@ -55,6 +59,15 @@ function ProfileFields() {
         placeholder="you@example.com"
         className={inputClass}
       />
+      <div className="pt-2">
+        <button
+          onClick={() => void handleLogout()}
+          className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3.5 py-2 text-[13px] font-medium text-rose-400 hover:bg-rose-500/20 transition-colors"
+        >
+          <LogOut size={15} />
+          <span>ログアウト</span>
+        </button>
+      </div>
     </div>
   );
 }
@@ -146,7 +159,7 @@ export function SettingsModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-6 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] px-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))]"
       onMouseDown={(e) => e.target === e.currentTarget && dispatch({ type: "toggleAppSettings", open: false })}
     >
       <div
@@ -155,12 +168,12 @@ export function SettingsModal() {
         aria-modal="true"
         aria-labelledby="app-settings-title"
         tabIndex={-1}
-        className="flex h-[560px] w-full max-w-[860px] overflow-hidden rounded-2xl border border-hairline/50 bg-panel shadow-2xl outline-none"
+        className="flex flex-col sm:flex-row h-[min(90dvh,560px)] sm:h-[560px] w-full max-w-[860px] overflow-hidden rounded-2xl border border-hairline/50 bg-panel shadow-2xl outline-none"
       >
         {/* section nav */}
-        <nav className="flex w-[190px] shrink-0 flex-col gap-0.5 border-r border-hairline/40 p-3">
-          <div id="app-settings-title" className="px-2 pb-2 pt-1 text-[15px] font-semibold text-ink">
-            Settings
+        <nav className="flex sm:w-[190px] shrink-0 sm:flex-col overflow-x-auto sm:overflow-x-visible gap-0.5 border-b sm:border-b-0 sm:border-r border-hairline/40 p-2 sm:p-3">
+          <div id="app-settings-title" className="hidden sm:block px-2 pb-2 pt-1 text-[15px] font-semibold text-ink">
+            設定
           </div>
           {SECTIONS.map(({ id, label, icon: Icon }) => (
             <button
@@ -168,7 +181,7 @@ export function SettingsModal() {
               onClick={() => setSection(id)}
               aria-current={section === id ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px]",
+                "flex items-center gap-2 rounded-lg px-2.5 py-1.5 sm:py-2 text-left text-[13px] sm:text-[14px] whitespace-nowrap",
                 section === id ? "bg-raised text-ink" : "text-ink-secondary hover:bg-raised/50 hover:text-ink",
               )}
             >

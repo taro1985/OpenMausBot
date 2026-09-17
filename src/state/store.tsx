@@ -16,6 +16,7 @@ import type { MausColor, MausMotion } from "@/lib/mascot";
 import type { Routine, RoutineInput, RoutineRun } from "@/lib/routines";
 import { currentCall } from "@/lib/call";
 import { speaker } from "@/lib/tts";
+import { clearAuthToken, getAuthToken } from "@/lib/authClient";
 
 export type { MausColor } from "@/lib/mascot";
 
@@ -197,6 +198,7 @@ interface AppState {
     nonce: number;
     kind: Exclude<MausMotion, "none">;
   } | null;
+  mobileSidebarOpen: boolean;
 }
 
 type Action =
@@ -262,6 +264,7 @@ type Action =
   | { type: "togglePlugins"; open?: boolean }
   | { type: "toggleComputer"; open?: boolean }
   | { type: "toggleAppSettings"; open?: boolean }
+  | { type: "toggleMobileSidebar"; open?: boolean }
   | {
       type: "updateBot";
       botId: string;
@@ -328,6 +331,7 @@ function reducer(state: AppState, action: Action): AppState {
         computerOpen: false,
         appSettingsOpen: false,
         pluginsOpen: false,
+        mobileSidebarOpen: false,
       };
     case "routinesHydrated":
       return { ...state, routines: action.routines, routineRuns: action.runs };
@@ -371,11 +375,12 @@ function reducer(state: AppState, action: Action): AppState {
           ...state,
           activeView: "chat",
           selectedId: action.id,
+          mobileSidebarOpen: false,
           groups: state.groups.map((g) => (g.id === action.id ? { ...g, unread: false } : g)),
         };
       }
       return updateBot(
-        withMascotMotion({ ...state, activeView: "chat", selectedId: action.id }, action.id, "switch"),
+        withMascotMotion({ ...state, activeView: "chat", selectedId: action.id, mobileSidebarOpen: false }, action.id, "switch"),
         action.id,
         (b) => ({ ...b, unread: false }),
       );
@@ -548,6 +553,11 @@ function reducer(state: AppState, action: Action): AppState {
         pluginsOpen: open ? false : state.pluginsOpen,
       };
     }
+    case "toggleMobileSidebar":
+      return {
+        ...state,
+        mobileSidebarOpen: action.open ?? !state.mobileSidebarOpen,
+      };
     case "updateBot": {
       const mascotChanged =
         Object.prototype.hasOwnProperty.call(action.patch, "color") ||
@@ -648,14 +658,27 @@ const initialState: AppState = {
   connected: false,
   error: null,
   mascotMotion: null,
+  mobileSidebarOpen: false,
 };
 
 // ── API client ─────────────────────────────────────────────────────────
 export async function api(path: string, init?: RequestInit): Promise<any> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   const res = await fetch(path, {
-    headers: { "content-type": "application/json" },
     ...init,
+    headers: {
+      ...headers,
+      ...(init?.headers ?? {}),
+    },
   });
+  if (res.status === 401) {
+    clearAuthToken();
+    window.location.reload();
+  }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error ?? `${res.status} ${res.statusText}`);
   return body;
@@ -739,9 +762,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
     // fire-and-forget card persistence; the route is optional server-side
     const persistCard = (botId: string, messageId: string, patch: Partial<OptionCardData>) => {
-      fetch(`/api/bots/${botId}/cards/${messageId}`, {
+      api(`/api/bots/${botId}/cards/${messageId}`, {
         method: "PATCH",
-        headers: { "content-type": "application/json" },
         body: JSON.stringify(patch),
       }).catch(() => {});
     };
@@ -1005,7 +1027,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
     loadAll();
 
-    const es = new EventSource("/api/events");
+    const token = getAuthToken();
+    const sseUrl = token ? `/api/events?token=${encodeURIComponent(token)}` : "/api/events";
+    const es = new EventSource(sseUrl);
     es.onopen = () => {
       rawDispatch({ type: "connected", value: true });
       loadAll(); // resync anything missed while disconnected
@@ -1053,9 +1077,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           // reading the selected chat clears its badge immediately
           if (bot.unread && bot.id === stateRef.current.selectedId) {
             bot.unread = false;
-            fetch(`/api/bots/${bot.id}`, {
+            api(`/api/bots/${bot.id}`, {
               method: "PATCH",
-              headers: { "content-type": "application/json" },
               body: JSON.stringify({ unread: false }),
             }).catch(() => {});
           }
@@ -1067,9 +1090,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           // reading the selected room clears its badge immediately
           if (group.unread && group.id === stateRef.current.selectedId) {
             group.unread = false;
-            fetch(`/api/groups/${group.id}`, {
+            api(`/api/groups/${group.id}`, {
               method: "PATCH",
-              headers: { "content-type": "application/json" },
               body: JSON.stringify({ unread: false }),
             }).catch(() => {});
           }

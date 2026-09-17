@@ -21,6 +21,7 @@ import {
   Puzzle,
   Trash2,
   Users,
+  X,
 } from "lucide-react";
 import { useStore, formatTime, visibleMessages, type Bot, type Group } from "@/state/store";
 import { MausAvatar, InitialsAvatar } from "./Avatar";
@@ -64,16 +65,16 @@ function UpdateButton() {
   const working = status === "checking" || status === "downloading";
   const label =
     status === "available"
-      ? `Version ${s?.version ?? ""} available — download`
+      ? `バージョン ${s?.version ?? ""} が利用可能 — ダウンロード`
       : status === "downloading"
-        ? `Downloading… ${Math.round(s?.percent ?? 0)}%`
+        ? `ダウンロード中… ${Math.round(s?.percent ?? 0)}%`
         : status === "downloaded"
-          ? `Version ${s?.version ?? ""} ready — restart to update`
+          ? `バージョン ${s?.version ?? ""} 準備完了 — 再起動して更新`
           : status === "checking"
-            ? "Checking for updates…"
+            ? "アップデートを確認中…"
             : upToDate
-              ? "You're up to date"
-              : "Check for updates";
+              ? "最新の状態です"
+              : "アップデートを確認";
 
   return (
     <button
@@ -488,29 +489,54 @@ export function Sidebar() {
   const visibleGroups = state.groups.filter((g) => !q || g.name.toLowerCase().includes(q));
 
   return (
-    <aside className="flex h-full w-[320px] shrink-0 flex-col border-r border-hairline/40 bg-panel">
-      {/* macOS owns inset traffic lights; Linux/Windows use native chrome. */}
+    <>
+      {/* Mobile overlay backdrop */}
       <div
-        className="flex items-center justify-between px-4 pt-3.5 pb-1"
-        style={macInset ? ({ WebkitAppRegion: "drag" } as React.CSSProperties) : undefined}
+        className={cn(
+          "fixed inset-0 z-40 bg-black/60 transition-opacity md:hidden",
+          state.mobileSidebarOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        )}
+        onClick={() => dispatch({ type: "toggleMobileSidebar", open: false })}
+      />
+
+      <aside
+        className={cn(
+          "flex h-full flex-col border-r border-hairline/40 bg-panel transition-transform duration-200 ease-in-out z-50",
+          "fixed inset-y-0 left-0 w-[280px] sm:w-[320px] md:static md:w-[320px] md:shrink-0",
+          state.mobileSidebarOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full md:translate-x-0"
+        )}
       >
-        {macInset ? (
-          <div className="w-14" />
-        ) : browser ? (
-          <div className="flex items-center gap-2">
-            <span className="size-3 rounded-full bg-[#ff5f57]" />
-            <span className="size-3 rounded-full bg-[#febc2e]" />
-            <span className="size-3 rounded-full bg-[#28c840]" />
-          </div>
-        ) : <div />}
+        {/* macOS owns inset traffic lights; Linux/Windows use native chrome. */}
         <div
-          className="relative"
-          style={macInset ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties) : undefined}
+          className="flex items-center justify-between px-4 pt-[max(0.875rem,env(safe-area-inset-top))] pb-1"
+          style={macInset ? ({ WebkitAppRegion: "drag" } as React.CSSProperties) : undefined}
         >
+          <div className="flex items-center gap-2">
+            {macInset ? (
+              <div className="w-14" />
+            ) : browser ? (
+              <div className="flex items-center gap-2">
+                <span className="size-3 rounded-full bg-[#ff5f57]" />
+                <span className="size-3 rounded-full bg-[#febc2e]" />
+                <span className="size-3 rounded-full bg-[#28c840]" />
+              </div>
+            ) : null}
+            <button
+              onClick={() => dispatch({ type: "toggleMobileSidebar", open: false })}
+              className="rounded-md p-1 text-ink-secondary hover:bg-raised hover:text-ink md:hidden"
+              title="Close menu"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <div
+            className="relative"
+            style={macInset ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties) : undefined}
+          >
           <button
             onClick={() => setPlusOpen((o) => !o)}
             className="rounded-md p-1 text-ink-secondary hover:bg-raised hover:text-ink"
-            title="New bot or room"
+            title="新しいボットまたはルーム"
           >
             <Plus size={20} strokeWidth={2} />
           </button>
@@ -527,7 +553,7 @@ export function Sidebar() {
                   className="flex w-full items-center gap-3 px-3.5 py-2 text-left text-[14px] text-ink hover:bg-raised/70"
                 >
                   <BotIcon size={16} className="text-ink-secondary" />
-                  New Bot
+                  新しいボット
                 </button>
                 <button
                   onClick={() => {
@@ -537,7 +563,7 @@ export function Sidebar() {
                   className="flex w-full items-center gap-3 px-3.5 py-2 text-left text-[14px] text-ink hover:bg-raised/70"
                 >
                   <Users size={16} className="text-ink-secondary" />
-                  New Room
+                  新しいルーム
                 </button>
               </div>
             </>
@@ -553,8 +579,8 @@ export function Sidebar() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && setQuery("")}
-            placeholder="Search"
-            aria-label="Search bots"
+            placeholder="検索"
+            aria-label="ボットを検索"
             className="w-full bg-transparent text-[14px] text-ink placeholder:text-ink-secondary focus:outline-none"
           />
         </div>
@@ -564,7 +590,7 @@ export function Sidebar() {
       <div className="flex-1 overflow-y-auto px-2">
         <div className="flex flex-col gap-0.5">
           {visibleBots.length === 0 && visibleGroups.length === 0 && q && (
-            <div className="px-3 py-6 text-center text-[13px] text-ink-secondary">Nothing matches “{query}”</div>
+            <div className="px-3 py-6 text-center text-[13px] text-ink-secondary">“{query}” に一致する項目はありません</div>
           )}
           {visibleGroups.map((g) => (
             <GroupListItem key={g.id} group={g} onMenu={setRoomMenu} />
@@ -576,7 +602,7 @@ export function Sidebar() {
       </div>
 
       {/* Footer */}
-      <div className="px-3 pb-3 pt-2">
+      <div className="px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <button
           onClick={() => dispatch({ type: "showRoutines" })}
           className={cn(
@@ -585,7 +611,7 @@ export function Sidebar() {
           )}
         >
           <CalendarDays size={20} className={state.activeView === "routines" ? "text-accent" : "text-ink-secondary"} />
-          <span className="flex-1 text-[14px]">Routines</span>
+          <span className="flex-1 text-[14px]">ルーティン</span>
           {state.routineRuns.some((run) => ["failed", "missed"].includes(run.status) && !run.seenAt) && (
             <span className="size-2 rounded-full bg-danger" />
           )}
@@ -595,7 +621,7 @@ export function Sidebar() {
           className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-raised/50"
         >
           <Puzzle size={20} className="text-ink-secondary" />
-          <span className="text-[14px] text-ink">Plugins</span>
+          <span className="text-[14px] text-ink">プラグイン</span>
         </button>
         <div className="flex items-center">
           <button
@@ -604,14 +630,14 @@ export function Sidebar() {
           >
             <InitialsAvatar initials={profileInitials(state.config?.profile)} size={28} />
             <span className="truncate text-[14px] text-ink">
-              {state.config?.profile?.name?.trim() || state.config?.profile?.email?.trim() || "You"}
+              {state.config?.profile?.name?.trim() || state.config?.profile?.email?.trim() || "あなた"}
             </span>
           </button>
           <UpdateButton />
           <button
             onClick={() => dispatch({ type: "toggleAppSettings" })}
             className="rounded-md p-2 text-ink-secondary hover:bg-raised hover:text-ink"
-            title="App settings"
+            title="アプリ設定"
           >
             <Settings size={18} />
           </button>
@@ -622,5 +648,6 @@ export function Sidebar() {
       {roomMenu && <RoomContextMenu menu={roomMenu} onClose={() => setRoomMenu(null)} />}
       {newRoom && <NewRoomPanel onClose={() => setNewRoom(false)} />}
     </aside>
+    </>
   );
 }
