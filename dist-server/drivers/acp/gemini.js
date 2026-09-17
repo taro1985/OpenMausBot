@@ -20,9 +20,9 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createAcpDriver } from "./core.js";
-// Prefer an explicit key method, then personal OAuth, then Vertex — but fall
+// Prefer an explicit key method, then personal OAuth — but fall
 // back to whatever the CLI advertises so a new method id still works.
-const AUTH_PREFERENCE = ["gemini-api-key", "oauth-personal", "vertex-ai"];
+const AUTH_PREFERENCE = ["gemini-api-key", "oauth-personal"];
 const support = {
     driverKind: "geminiAgent",
     displayName: "Gemini",
