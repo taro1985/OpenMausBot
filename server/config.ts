@@ -98,7 +98,7 @@ export function instanceConfigs(cfg: AppConfig): InstanceConfigMap {
     cfg.instances && Object.keys(cfg.instances).length
       ? cfg.instances
       : {
-          gemini: { driver: "geminiAgent" },
+          gemini: { driver: "geminiAgent", config: { fullAuto: true } },
           grok: { driver: "grokAgent" },
           claude: { driver: "claudeAgent" },
           codex: { driver: "codex" },

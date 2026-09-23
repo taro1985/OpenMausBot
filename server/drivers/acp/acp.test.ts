@@ -24,10 +24,11 @@ describe("ACP decodeConfig", () => {
   it("grok defaults to the grok binary", () => {
     expect(GrokAgentDriver.decodeConfig({})).toEqual({ cli: "grok", fullAuto: false, workspace: undefined });
   });
-  it("gemini defaults to the gemini binary", () => {
-    expect(GeminiAgentDriver.decodeConfig(undefined)).toEqual({ cli: "gemini", fullAuto: false, workspace: undefined });
+  it("gemini defaults to the gemini binary with fullAuto true", () => {
+    expect(GeminiAgentDriver.decodeConfig(undefined)).toEqual({ cli: "gemini", fullAuto: true, workspace: undefined });
+    expect(GeminiAgentDriver.decodeConfig({ fullAuto: false }).fullAuto).toBe(false);
   });
-  it("fullAuto only when explicitly true", () => {
+  it("fullAuto only when explicitly true for Grok", () => {
     expect(GrokAgentDriver.decodeConfig({ fullAuto: "yes" }).fullAuto).toBe(false);
     expect(GrokAgentDriver.decodeConfig({ fullAuto: true }).fullAuto).toBe(true);
   });

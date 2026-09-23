@@ -68,22 +68,24 @@ export interface AcpSupport {
   /** "fail": abort the turn if auth is missing/errors (subscription CLIs).
    *  "continue": proceed anyway (CLIs that work off an ambient login). */
   authFailure: "fail" | "continue";
-  /** snapshot(): is the CLI signed in? (env already carries the merged config) */
+  /** Snapshot(): is the CLI signed in? (env already carries the merged config) */
   isAuthenticated(env: Record<string, string | undefined>): boolean;
   /** Compose the session/prompt text. Default prepends the persona. */
   buildPromptText?(turn: SendTurnInput): string;
+  /** Default fullAuto behavior if omitted in config (defaults to false). */
+  defaultFullAuto?: boolean;
 }
 
 const INIT_TIMEOUT = 20_000;
 const NEW_SESSION_TIMEOUT = 30_000;
 const LOAD_SESSION_TIMEOUT = 120_000; // history replay on a long thread is slow
 
-function decodeAcpConfig(defaultCli: string) {
+function decodeAcpConfig(defaultCli: string, defaultFullAuto = false) {
   return (raw: unknown): AcpConfig => {
     const o = (raw ?? {}) as Record<string, unknown>;
     return {
       cli: typeof o.cli === "string" ? o.cli : defaultCli,
-      fullAuto: o.fullAuto === true,
+      fullAuto: o.fullAuto !== undefined ? o.fullAuto === true : defaultFullAuto,
       workspace: typeof o.workspace === "string" ? o.workspace : undefined,
     };
   };
@@ -92,7 +94,7 @@ function decodeAcpConfig(defaultCli: string) {
 export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> {
   const DRIVER_KIND = support.driverKind;
   const SOURCE = support.nativeSource;
-  const decodeConfig = decodeAcpConfig(support.defaultCli);
+  const decodeConfig = decodeAcpConfig(support.defaultCli, support.defaultFullAuto);
   const DENY_TIMEOUT_NOTE =
     "OpenMausBot: nobody answered this permission request in time. Skip this action and finish what you can without it.";
 
@@ -267,9 +269,19 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
               result: allow ? { outcome: { outcome: "selected", optionId: allow } } : cancelled,
             });
           }
-          const kind = String(toolCall.kind ?? "");
+          let kind = String(toolCall.kind ?? "");
+          let title = String(toolCall.title ?? "");
+          // If kind is "other" and title is empty/"{}" (typical of Gemini CLI ACP),
+          // inspect options for descriptive names like "Always Allow list_bots"
+          if ((!kind || kind === "other") && (!title || title === "{}")) {
+            const toolOpt = options.find((o) => typeof (o as any).name === "string" && (o as any).name.startsWith("Always Allow "));
+            if (toolOpt && typeof (toolOpt as any).name === "string") {
+              title = (toolOpt as any).name.replace(/^Always Allow\s+/, "");
+              kind = title;
+            }
+          }
           const tool = kind === "execute" ? "shell" : kind === "edit" ? "edit" : kind || "tool";
-          const summary = String(toolCall.rawInput?.command ?? toolCall.title ?? tool).slice(0, 200);
+          const summary = String(toolCall.rawInput?.command ?? (title && title !== "{}" ? title : null) ?? tool).slice(0, 200);
           const requestId = newId();
           const finish = (behavior: string) => {
             if (!asks.delete(requestId)) return;
