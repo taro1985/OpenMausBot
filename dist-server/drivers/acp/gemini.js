@@ -57,5 +57,6 @@ const support = {
         existsSync(join(homedir(), ".gemini", "oauth_creds.json")) ||
         existsSync(join(homedir(), ".config", "gcloud", "application_default_credentials.json")),
     buildPromptText: (turn) => (turn.system ? `${turn.system}\n\n${turn.text}` : turn.text),
+    defaultFullAuto: true,
 };
 export const GeminiAgentDriver = createAcpDriver(support);

@@ -24,7 +24,7 @@
     "dev": "vite",
     "dev:server": "node --experimental-strip-types server/index.ts",
     "dev:desktop": "electron .",
-    "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
+    "build": "tsc -b && tsc -p tsconfig.server.build.json && vite build",
     "typecheck": "tsc -b && tsc -p tsconfig.server.json",
     "test": "vitest run",
     "bench:observation": "node --experimental-strip-types scripts/bench-observation.ts",
