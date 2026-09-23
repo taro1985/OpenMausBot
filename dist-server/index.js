@@ -19,10 +19,11 @@ import { createServer } from "node:http";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { approvalKey, autoDecision } from "./auto-approve.js";
+import { writeFileAtomic } from "./atomic.js";
 import * as box from "./box.js";
 import * as composio from "./composio.js";
 import { containerComputerStatus, setupCommands } from "./container-computer.js";
-import { ensureDirs, instanceConfigs, loadConfig, saveConfig, EVENTS_DIR, NATIVE_DIR } from "./config.js";
+import { ensureDirs, instanceConfigs, loadConfig, saveConfig, DATA_DIR, EVENTS_DIR, NATIVE_DIR } from "./config.js";
 import { BUILT_IN_DRIVERS } from "./drivers/builtIn.js";
 import { EventBus } from "./harness/bus.js";
 import { ProviderRegistry } from "./harness/registry.js";
@@ -834,10 +835,31 @@ function readBody(req) {
         req.on("error", (e) => fail(400, e instanceof Error ? e.message : String(e)));
     });
 }
-// ── Auth & Token Store ──────────────────────────────────────────────────
+// ── Auth & Token Store (Persistent) ───────────────────────────────────
 const AUTH_USER = process.env.AUTH_USER || "admin";
 const AUTH_PASS = process.env.AUTH_PASS || "";
-const activeAuthTokens = new Set();
+const SESSIONS_FILE = join(DATA_DIR, "sessions.json");
+function loadPersistedTokens() {
+    try {
+        if (existsSync(SESSIONS_FILE)) {
+            const data = JSON.parse(readFileSync(SESSIONS_FILE, "utf8"));
+            if (Array.isArray(data.tokens)) {
+                return new Set(data.tokens.filter((t) => typeof t === "string"));
+            }
+        }
+    }
+    catch { }
+    return new Set();
+}
+const activeAuthTokens = loadPersistedTokens();
+function savePersistedTokens() {
+    try {
+        writeFileAtomic(SESSIONS_FILE, JSON.stringify({ tokens: Array.from(activeAuthTokens) }, null, 2));
+    }
+    catch (e) {
+        console.error("Failed to persist auth tokens:", e);
+    }
+}
 const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
     const path = url.pathname;
@@ -851,6 +873,7 @@ const server = createServer(async (req, res) => {
             if (username === AUTH_USER && password === AUTH_PASS) {
                 const token = randomBytes(32).toString("hex");
                 activeAuthTokens.add(token);
+                savePersistedTokens();
                 return json(res, 200, { token, user: { username: AUTH_USER } });
             }
             return json(res, 401, { error: "ユーザー名またはパスワードが正しくありません" });
@@ -868,8 +891,10 @@ const server = createServer(async (req, res) => {
                 return json(res, 200, { authenticated: true, user: { username: AUTH_USER } });
             }
             if (method === "POST" && path === "/api/logout") {
-                if (token)
+                if (token) {
                     activeAuthTokens.delete(token);
+                    savePersistedTokens();
+                }
                 return json(res, 200, { success: true });
             }
         }

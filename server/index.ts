@@ -19,10 +19,11 @@ import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { approvalKey, autoDecision } from "./auto-approve.ts";
+import { writeFileAtomic } from "./atomic.ts";
 import * as box from "./box.ts";
 import * as composio from "./composio.ts";
 import { containerComputerStatus, setupCommands } from "./container-computer.ts";
-import { ensureDirs, instanceConfigs, loadConfig, saveConfig, EVENTS_DIR, NATIVE_DIR } from "./config.ts";
+import { ensureDirs, instanceConfigs, loadConfig, saveConfig, DATA_DIR, EVENTS_DIR, NATIVE_DIR } from "./config.ts";
 import type { RuntimeEvent } from "./contracts.ts";
 
 import { BUILT_IN_DRIVERS } from "./drivers/builtIn.ts";
@@ -875,10 +876,32 @@ function readBody(req: IncomingMessage): Promise<any> {
   });
 }
 
-// ── Auth & Token Store ──────────────────────────────────────────────────
+// ── Auth & Token Store (Persistent) ───────────────────────────────────
 const AUTH_USER = process.env.AUTH_USER || "admin";
 const AUTH_PASS = process.env.AUTH_PASS || "";
-const activeAuthTokens = new Set<string>();
+const SESSIONS_FILE = join(DATA_DIR, "sessions.json");
+
+function loadPersistedTokens(): Set<string> {
+  try {
+    if (existsSync(SESSIONS_FILE)) {
+      const data = JSON.parse(readFileSync(SESSIONS_FILE, "utf8"));
+      if (Array.isArray(data.tokens)) {
+        return new Set(data.tokens.filter((t: unknown): t is string => typeof t === "string"));
+      }
+    }
+  } catch {}
+  return new Set<string>();
+}
+
+const activeAuthTokens = loadPersistedTokens();
+
+function savePersistedTokens() {
+  try {
+    writeFileAtomic(SESSIONS_FILE, JSON.stringify({ tokens: Array.from(activeAuthTokens) }, null, 2));
+  } catch (e) {
+    console.error("Failed to persist auth tokens:", e);
+  }
+}
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
@@ -893,6 +916,7 @@ const server = createServer(async (req, res) => {
       if (username === AUTH_USER && password === AUTH_PASS) {
         const token = randomBytes(32).toString("hex");
         activeAuthTokens.add(token);
+        savePersistedTokens();
         return json(res, 200, { token, user: { username: AUTH_USER } });
       }
       return json(res, 401, { error: "ユーザー名またはパスワードが正しくありません" });
@@ -914,7 +938,10 @@ const server = createServer(async (req, res) => {
       }
 
       if (method === "POST" && path === "/api/logout") {
-        if (token) activeAuthTokens.delete(token);
+        if (token) {
+          activeAuthTokens.delete(token);
+          savePersistedTokens();
+        }
         return json(res, 200, { success: true });
       }
     }

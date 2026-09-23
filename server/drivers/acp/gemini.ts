@@ -22,25 +22,34 @@ import { join } from "node:path";
 
 import { createAcpDriver, type AcpSupport } from "./core.ts";
 
-// Prefer an explicit key method, then personal OAuth — but fall
+// Prefer Vertex AI, then explicit key method, then personal OAuth — but fall
 // back to whatever the CLI advertises so a new method id still works.
-const AUTH_PREFERENCE = ["gemini-api-key", "oauth-personal"];
+const AUTH_PREFERENCE = ["vertex-ai", "gemini-api-key", "oauth-personal"];
 
 const support: AcpSupport = {
   driverKind: "geminiAgent",
   displayName: "Gemini",
   models: {
-    default: "gemini-2.5-pro",
+    default: "gemini-3.8-flash",
     options: [
+      { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash (Vertex AI)" },
+      { id: "gemini-3.8-flash-cyber", label: "Gemini 3.8 Flash Cyber" },
       { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
       { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
     ],
   },
   defaultCli: "gemini",
   nativeSource: "gemini.acp",
-  loginNote: "Gemini CLI is not signed in — run `gemini` once to log in, or set GEMINI_API_KEY",
+  loginNote: "Gemini CLI is not signed in — run `gemini` once to log in, or set GEMINI_API_KEY / Vertex AI ADC",
 
   spawnArgs: (_config, turn) => ["--experimental-acp", ...(turn.model ? ["-m", turn.model] : [])],
+
+  transformEnv: (env) => {
+    // Automatically inject Vertex AI configuration for Gemini 3.8 / 2.5
+    env.GOOGLE_GENAI_USE_VERTEXAI = "true";
+    env.GOOGLE_CLOUD_PROJECT = env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "gen-lang-client-0967206367";
+    env.GOOGLE_CLOUD_LOCATION = env.GOOGLE_CLOUD_LOCATION || process.env.GOOGLE_CLOUD_LOCATION || "global";
+  },
 
   pickAuthMethod: (methods) => {
     const ids = methods.map((m) => m.id).filter((id): id is string => typeof id === "string");
@@ -50,8 +59,9 @@ const support: AcpSupport = {
   authFailure: "continue",
 
   isAuthenticated: (env) =>
-    Boolean(env.GEMINI_API_KEY || env.GOOGLE_API_KEY) ||
-    existsSync(join(homedir(), ".gemini", "oauth_creds.json")),
+    Boolean(env.GEMINI_API_KEY || env.GOOGLE_API_KEY || env.GOOGLE_GENAI_USE_VERTEXAI || process.env.GOOGLE_GENAI_USE_VERTEXAI) ||
+    existsSync(join(homedir(), ".gemini", "oauth_creds.json")) ||
+    existsSync(join(homedir(), ".config", "gcloud", "application_default_credentials.json")),
 
   buildPromptText: (turn) => (turn.system ? `${turn.system}\n\n${turn.text}` : turn.text),
 };
