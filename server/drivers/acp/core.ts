@@ -495,7 +495,7 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
       const snapshot = async (): Promise<ProviderSnapshot> => {
         const env = childEnv();
         const version = await new Promise<string | null>((resolve) => {
-          execCli(config.cli, ["--version"], { timeout: 8000, env }, (err, stdout) =>
+          execCli(config.cli, ["--version"], { timeout: 20000, env }, (err, stdout) =>
             resolve(err ? null : stdout.trim()),
           );
         });

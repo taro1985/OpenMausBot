@@ -438,7 +438,7 @@ export function createAcpDriver(support) {
             const snapshot = async () => {
                 const env = childEnv();
                 const version = await new Promise((resolve) => {
-                    execCli(config.cli, ["--version"], { timeout: 8000, env }, (err, stdout) => resolve(err ? null : stdout.trim()));
+                    execCli(config.cli, ["--version"], { timeout: 20000, env }, (err, stdout) => resolve(err ? null : stdout.trim()));
                 });
                 if (!version)
                     return { state: "unavailable", reason: `\`${config.cli}\` CLI not found` };
